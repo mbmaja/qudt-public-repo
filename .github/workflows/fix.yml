@@ -1,4 +1,4 @@
-name: run `mvn spotless:apply`
+name: run `mvn -Pfix install`
 on:
   workflow_dispatch:
 
@@ -34,22 +34,24 @@ jobs:
           git config user.name ${{ github.actor }}
           git config user.email "<>"
 
-      # Check formatting and exit early (with success) if format is ok
-      - name: Check formatting
-        run: |
-          if mvn spotless:check; then
-            echo "Source was already formatted, nothing was touched." >> $GITHUB_STEP_SUMMARY
-            exit 0
-          else
-            echo "Sources need formatting, we'll do that now"
-          fi
-
       # run mvn install,
       # if there are problems, try mvn -Pfix install
       # then run mvn install again
       # try that up to three times
-      - name: Apply formatting
-        run: mvn spotless:apply
+      - name: Apply formatting and fix recoverable data errors in src
+        run: |
+          attempt=0
+          while true; do
+            if mvn install; then
+              break
+            fi
+            if [ $attempt -ge 3 ]; then
+              echo "Failed to fix formatting after 3 attempts."
+              exit 1
+            fi
+            mvn -Pfix install
+            attempt=$((attempt + 1))
+          done
 
       # Commit changes
       - name: Commit changes
@@ -65,4 +67,4 @@ jobs:
 
       # print the summary
       - name: Print summary
-        run: echo "Successfully formatted the source files and made a commit." >> $GITHUB_STEP_SUMMARY
+        run: echo "Successfully built with -Pfix and made a commit." >> $GITHUB_STEP_SUMMARY
